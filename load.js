@@ -2,8 +2,14 @@ import http from 'k6/http';
 import { check } from 'k6';
 
 export const options = {
-  vus: 10,          // 10 users at the same time
-  iterations: 30,   // 30 iterations total
+  scenarios: {
+    load_test: {
+      executor: 'shared-iterations',
+      vus: 10,          // Concurrent users
+      iterations: 150,  // Total requests per endpoint loop
+      maxDuration: '10m',
+    },
+  },
 
   thresholds: {
     http_req_failed: ['rate<0.01'],
@@ -12,6 +18,7 @@ export const options = {
 };
 
 const BASE_URL = 'http://172.20.0.121:8001';
+
 const TOKEN = 'f172782e-e202-486b-a714-35ce673eb61c';
 
 const params = {
@@ -21,20 +28,24 @@ const params = {
   },
 };
 
-export default function () {
-  const responses = http.batch([
-    ['GET', `${BASE_URL}/api/template-manager/dl-types`, null, params],
-    ['GET', `${BASE_URL}/api/template-manager/templates`, null, params],
-    ['GET', `${BASE_URL}/api/template-manager/clients`, null, params],
-    ['GET', `${BASE_URL}/api/template-manager/activity-logs`, null, params],
-    // Add the required query parameters below
-    ['GET', `${BASE_URL}/api/template-manager/test-values?folder_name=YOUR_FOLDER&template_name=YOUR_TEMPLATE&template_type=YOUR_TYPE`, null, params],
-    ['GET', `${BASE_URL}/api/template-manager/existing-names`, null, params],
-  ]);
+const endpoints = [
+  '/api/template-manager/dl-types',
+  '/api/template-manager/ftp-templates',
+  '/api/template-manager/existing-names',
+  '/api/template-manager/clients',
+  '/api/template-manager/incomplete-configurations',
+  '/api/template-manager/templates',
+  '/api/template-manager/activity-logs',
+];
 
-  responses.forEach((res) => {
+export default function () {
+  endpoints.forEach((endpoint) => {
+    const res = http.get(`${BASE_URL}${endpoint}`, params);
+
     check(res, {
-      'status is 200': (r) => r.status === 200,
+      [`${endpoint} returned 200`]: (r) => r.status === 200,
+      [`${endpoint} response < 1000ms`]: (r) =>
+        r.timings.duration < 1000,
     });
   });
 }
